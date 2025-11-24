@@ -8,6 +8,8 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div id="root"></div>
@@ -15,8 +17,12 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Google Apps Script Web App URL - YOU NEED TO CREATE THIS
-        const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE'; // You'll replace this
+        // 🔑 REPLACE THESE WITH YOUR SUPABASE CREDENTIALS
+        const SUPABASE_URL = 'https://wdkbjlgeacfcxpoynudh.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indka2JqbGdlYWNmY3hwb3ludWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTc0ODMsImV4cCI6MjA3OTU3MzQ4M30.WirrWiD-K9znPE297H294qy9EHRgOw5nIEO8kv5yjdE';
+
+        // Initialize Supabase
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
@@ -24,13 +30,14 @@
             const [editingId, setEditingId] = useState(null);
             const [editForm, setEditForm] = useState({});
             const [loading, setLoading] = useState(true);
+            const [lastRefresh, setLastRefresh] = useState('');
             const [form, setForm] = useState({
                 hotel: "", 
-                hotelAddress: "",
+                hotel_address: "",
                 room: "", 
                 pax: "", 
                 ages: "", 
-                babyElderly: "", 
+                baby_elderly: "", 
                 phone: "", 
                 supplies: "", 
                 power: "", 
@@ -40,21 +47,23 @@
                 remarks: ""
             });
 
-            // Load data from Google Sheets
-            const loadDataFromSheets = async () => {
+            // Load data from Supabase
+            const loadDataFromSupabase = async () => {
                 try {
                     setLoading(true);
-                    // For now, we'll use a mock function since we don't have the Google Script URL yet
-                    // const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getData`);
-                    // const data = await response.json();
+                    console.log('Loading data from Supabase...');
                     
-                    // Simulate loading from Google Sheets (replace this with actual API call)
-                    console.log('Loading data from shared database...');
-                    
-                    // For demo purposes, we'll still use localStorage but with a shared key
-                    const sharedData = localStorage.getItem('sharedRescueEntries');
-                    if (sharedData) {
-                        setEntries(JSON.parse(sharedData));
+                    const { data, error } = await supabase
+                        .from('rescue_entries')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        console.error('Error loading data:', error);
+                        alert('Error loading data: ' + error.message);
+                    } else {
+                        setEntries(data || []);
+                        setLastRefresh(new Date().toLocaleTimeString());
                     }
                     
                     setLoading(false);
@@ -64,32 +73,12 @@
                 }
             };
 
-            // Save data to Google Sheets
-            const saveDataToSheets = async (data) => {
-                try {
-                    // For now, we'll use a mock function since we don't have the Google Script URL yet
-                    // const response = await fetch(GOOGLE_SCRIPT_URL, {
-                    //     method: 'POST',
-                    //     headers: { 'Content-Type': 'application/json' },
-                    //     body: JSON.stringify({ action: 'saveData', data: data })
-                    // });
-                    // return await response.json();
-                    
-                    // For demo purposes, we'll use localStorage as shared storage
-                    localStorage.setItem('sharedRescueEntries', JSON.stringify(data));
-                    return { success: true };
-                } catch (error) {
-                    console.error('Error saving data:', error);
-                    return { success: false, error: error.message };
-                }
-            };
-
             // Load data when component mounts
             useEffect(() => {
-                loadDataFromSheets();
+                loadDataFromSupabase();
                 
                 // Refresh data every 30 seconds to get updates from other users
-                const interval = setInterval(loadDataFromSheets, 30000);
+                const interval = setInterval(loadDataFromSupabase, 30000);
                 return () => clearInterval(interval);
             }, []);
 
@@ -120,27 +109,27 @@
                     return;
                 }
 
-                const newEntry = { 
-                    ...form, 
-                    id: Date.now(), 
-                    timestamp: new Date().toLocaleString(),
-                    rescued: false,
-                    rescueTimestamp: ""
-                };
+                try {
+                    const { data, error } = await supabase
+                        .from('rescue_entries')
+                        .insert([{ ...form }])
+                        .select();
 
-                const updatedEntries = [...entries, newEntry];
-                setEntries(updatedEntries);
-                
-                // Save to shared storage (Google Sheets)
-                const result = await saveDataToSheets(updatedEntries);
-                if (result.success) {
+                    if (error) {
+                        alert("Error submitting data: " + error.message);
+                        return;
+                    }
+
+                    // Refresh the data to include the new entry
+                    await loadDataFromSupabase();
+                    
                     setForm({
                         hotel: "", 
-                        hotelAddress: "", 
+                        hotel_address: "", 
                         room: "", 
                         pax: "", 
                         ages: "", 
-                        babyElderly: "", 
+                        baby_elderly: "", 
                         phone: "", 
                         supplies: "", 
                         power: "", 
@@ -151,7 +140,7 @@
                     });
                     setSearchTerm("");
                     alert("Registration submitted successfully! Data is now visible to rescue teams.");
-                } else {
+                } catch (error) {
                     alert("Error saving data. Please try again.");
                 }
             };
@@ -159,31 +148,38 @@
             // DELETE FUNCTION
             const handleDelete = async (id) => {
                 if (window.confirm("Are you sure you want to delete this entry?")) {
-                    const updatedEntries = entries.filter(entry => entry.id !== id);
-                    setEntries(updatedEntries);
-                    
-                    // Save to shared storage
-                    await saveDataToSheets(updatedEntries);
-                    alert("Entry deleted successfully!");
+                    const { error } = await supabase
+                        .from('rescue_entries')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        alert("Error deleting entry: " + error.message);
+                    } else {
+                        await loadDataFromSupabase();
+                        alert("Entry deleted successfully!");
+                    }
                 }
             };
 
             // RESCUE STATUS TOGGLE
-            const handleRescueToggle = async (id) => {
-                const updatedEntries = entries.map(entry => {
-                    if (entry.id === id) {
-                        return {
-                            ...entry,
-                            rescued: !entry.rescued,
-                            rescueTimestamp: !entry.rescued ? new Date().toLocaleString() : ""
-                        };
-                    }
-                    return entry;
-                });
-                setEntries(updatedEntries);
-                
-                // Save to shared storage
-                await saveDataToSheets(updatedEntries);
+            const handleRescueToggle = async (id, currentRescuedStatus) => {
+                const newRescuedStatus = !currentRescuedStatus;
+                const rescueTimestamp = newRescuedStatus ? new Date().toLocaleString() : "";
+
+                const { error } = await supabase
+                    .from('rescue_entries')
+                    .update({ 
+                        rescued: newRescuedStatus,
+                        rescue_timestamp: rescueTimestamp
+                    })
+                    .eq('id', id);
+
+                if (error) {
+                    alert("Error updating rescue status: " + error.message);
+                } else {
+                    await loadDataFromSupabase();
+                }
             };
 
             // EDIT FUNCTIONS
@@ -197,18 +193,19 @@
             };
 
             const handleSaveEdit = async () => {
-                const updatedEntries = entries.map(entry => 
-                    entry.id === editingId 
-                        ? { ...editForm, timestamp: new Date().toLocaleString() }
-                        : entry
-                );
-                setEntries(updatedEntries);
-                setEditingId(null);
-                setEditForm({});
-                
-                // Save to shared storage
-                await saveDataToSheets(updatedEntries);
-                alert("Entry updated successfully!");
+                const { error } = await supabase
+                    .from('rescue_entries')
+                    .update(editForm)
+                    .eq('id', editingId);
+
+                if (error) {
+                    alert("Error updating entry: " + error.message);
+                } else {
+                    await loadDataFromSupabase();
+                    setEditingId(null);
+                    setEditForm({});
+                    alert("Entry updated successfully!");
+                }
             };
 
             const handleCancelEdit = () => {
@@ -216,7 +213,7 @@
                 setEditForm({});
             };
 
-            const exportToGoogleSheets = () => {
+            const exportToCSV = () => {
                 if (entries.length === 0) {
                     alert("No data to export");
                     return;
@@ -231,22 +228,22 @@
                 const csvContent = [
                     headers.join(","),
                     ...entries.map(entry => [
-                        `"${entry.timestamp}"`,
-                        `"${entry.hotel}"`,
-                        `"${entry.hotelAddress}"`,
-                        `"${entry.room}"`,
-                        `"${entry.pax}"`,
-                        `"${entry.ages}"`,
-                        `"${entry.babyElderly}"`,
-                        `"${entry.phone}"`,
-                        `"${entry.supplies}"`,
-                        `"${entry.power}"`,
-                        `"${entry.medical}"`,
-                        `"${entry.evacuation}"`,
-                        `"${entry.nationality}"`,
-                        `"${entry.remarks}"`,
+                        `"${new Date(entry.created_at).toLocaleString()}"`,
+                        `"${entry.hotel || ''}"`,
+                        `"${entry.hotel_address || ''}"`,
+                        `"${entry.room || ''}"`,
+                        `"${entry.pax || ''}"`,
+                        `"${entry.ages || ''}"`,
+                        `"${entry.baby_elderly || ''}"`,
+                        `"${entry.phone || ''}"`,
+                        `"${entry.supplies || ''}"`,
+                        `"${entry.power || ''}"`,
+                        `"${entry.medical || ''}"`,
+                        `"${entry.evacuation || ''}"`,
+                        `"${entry.nationality || ''}"`,
+                        `"${entry.remarks || ''}"`,
                         `"${entry.rescued ? 'YES' : 'NO'}"`,
-                        `"${entry.rescueTimestamp || ''}"`
+                        `"${entry.rescue_timestamp || ''}"`
                     ].join(","))
                 ].join("\n");
 
@@ -254,7 +251,7 @@
                 const link = document.createElement("a");
                 const url = URL.createObjectURL(blob);
                 link.setAttribute("href", url);
-                link.setAttribute("download", "hatyai_rescue_data.csv");
+                link.setAttribute("download", `hatyai_rescue_data_${new Date().toISOString().split('T')[0]}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -288,7 +285,7 @@
                 entry.room?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 entry.phone?.includes(searchTerm) ||
                 entry.nationality?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                entry.hotelAddress?.toLowerCase().includes(searchTerm.toLowerCase())
+                entry.hotel_address?.toLowerCase().includes(searchTerm.toLowerCase())
             );
 
             return (
@@ -297,22 +294,22 @@
                     React.createElement('h1', { className: 'text-3xl font-bold mb-4' }, 'Hatyai Flood Rescue Registry'),
                     
                     // Shared Data Notice
-                    React.createElement('div', { className: 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg' },
-                        React.createElement('p', { className: 'text-sm text-blue-800' },
+                    React.createElement('div', { className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg' },
+                        React.createElement('p', { className: 'text-sm text-green-800' },
                             '🔗 ',
-                            React.createElement('strong', null, 'SHARED DATA: '),
-                            'All entries are visible to everyone. Data updates automatically every 30 seconds.'
+                            React.createElement('strong', null, 'LIVE SHARED DATA: '),
+                            'All entries are visible to everyone in real-time. Data stored securely in cloud database.'
                         )
                     ),
                     
                     // Buttons
                     React.createElement('div', { className: 'flex gap-3 mb-6 flex-wrap' },
                         React.createElement('button', {
-                            onClick: exportToGoogleSheets,
+                            onClick: exportToCSV,
                             className: 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2'
                         }, '📥 Export to CSV'),
                         React.createElement('button', {
-                            onClick: loadDataFromSheets,
+                            onClick: loadDataFromSupabase,
                             className: 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2'
                         }, '🔄 Refresh Data'),
                         React.createElement('button', {
@@ -344,7 +341,7 @@
 
                     // Loading indicator
                     loading && React.createElement('div', { className: 'text-center py-4' },
-                        React.createElement('p', { className: 'text-gray-600' }, 'Loading shared data...')
+                        React.createElement('p', { className: 'text-gray-600' }, 'Loading shared data from cloud database...')
                     ),
 
                     // Quick summary of search results
@@ -368,8 +365,8 @@
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
                             placeholder: 'Hotel Address', 
-                            name: 'hotelAddress', 
-                            value: form.hotelAddress, 
+                            name: 'hotel_address', 
+                            value: form.hotel_address, 
                             onChange: handleChange 
                         }),
                         
@@ -400,8 +397,8 @@
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
                             placeholder: 'Baby/Elderly (yes/no)', 
-                            name: 'babyElderly', 
-                            value: form.babyElderly, 
+                            name: 'baby_elderly', 
+                            value: form.baby_elderly, 
                             onChange: handleChange 
                         }),
                         
@@ -466,6 +463,7 @@
                         // Submit button
                         React.createElement('div', { className: 'md:col-span-2' },
                             React.createElement('button', { 
+                                type: 'submit',
                                 className: 'bg-blue-600 hover:bg-blue-700 text-white p-2 rounded w-full' 
                             }, 'Submit Registration')
                         )
@@ -484,7 +482,7 @@
                             ' still waiting'
                         ),
                         React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, 
-                            'Data updates automatically. Last refresh: ', new Date().toLocaleTimeString()
+                            `Cloud Database | Last refresh: ${lastRefresh}`
                         )
                     ),
 
@@ -500,9 +498,9 @@
                                 'No existing registrations found with your search. You can proceed to submit a new registration.'
                             ),
 
-                        entries.length === 0 
-                            ? React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.')
-                            : React.createElement('div', { className: 'grid gap-3' }, 
+                        entries.length === 0 && !loading ?
+                            React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.') :
+                            React.createElement('div', { className: 'grid gap-3' }, 
                                 (searchTerm ? filteredEntries : entries).map((e) => 
                                     React.createElement('div', { 
                                         key: e.id, 
@@ -516,7 +514,7 @@
                                             React.createElement('div', { className: 'flex gap-2' },
                                                 // Rescue Toggle Button
                                                 React.createElement('button', {
-                                                    onClick: () => handleRescueToggle(e.id),
+                                                    onClick: () => handleRescueToggle(e.id, e.rescued),
                                                     className: `px-3 py-1 rounded text-sm ${e.rescued ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} text-white`
                                                 }, e.rescued ? 'Mark as Not Rescued' : 'Mark as Rescued'),
                                                 // Edit Button
@@ -533,9 +531,9 @@
                                         ),
 
                                         // Rescue timestamp
-                                        e.rescued && e.rescueTimestamp && 
+                                        e.rescued && e.rescue_timestamp && 
                                             React.createElement('p', { className: 'text-sm text-green-600 mb-2' }, 
-                                                `Rescued on: ${e.rescueTimestamp}`
+                                                `Rescued on: ${e.rescue_timestamp}`
                                             ),
 
                                         editingId === e.id ? (
@@ -545,49 +543,49 @@
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Hotel Name', 
                                                     name: 'hotel', 
-                                                    value: editForm.hotel, 
+                                                    value: editForm.hotel || '', 
                                                     onChange: handleEditChange
                                                 }),
                                                 React.createElement('input', { 
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Hotel Address', 
-                                                    name: 'hotelAddress', 
-                                                    value: editForm.hotelAddress, 
+                                                    name: 'hotel_address', 
+                                                    value: editForm.hotel_address || '', 
                                                     onChange: handleEditChange 
                                                 }),
                                                 React.createElement('input', { 
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Room Number', 
                                                     name: 'room', 
-                                                    value: editForm.room, 
+                                                    value: editForm.room || '', 
                                                     onChange: handleEditChange
                                                 }),
                                                 React.createElement('input', { 
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Number of Pax', 
                                                     name: 'pax', 
-                                                    value: editForm.pax, 
+                                                    value: editForm.pax || '', 
                                                     onChange: handleEditChange
                                                 }),
                                                 React.createElement('input', { 
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Phone Number', 
                                                     name: 'phone', 
-                                                    value: editForm.phone, 
+                                                    value: editForm.phone || '', 
                                                     onChange: handleEditChange
                                                 }),
                                                 React.createElement('input', { 
                                                     className: 'p-1 border rounded text-sm', 
                                                     placeholder: 'Nationality', 
                                                     name: 'nationality', 
-                                                    value: editForm.nationality, 
+                                                    value: editForm.nationality || '', 
                                                     onChange: handleEditChange
                                                 }),
                                                 React.createElement('textarea', { 
                                                     className: 'md:col-span-2 p-1 border rounded text-sm', 
                                                     placeholder: 'Remarks', 
                                                     name: 'remarks', 
-                                                    value: editForm.remarks, 
+                                                    value: editForm.remarks || '', 
                                                     onChange: handleEditChange,
                                                     rows: 2 
                                                 }),
@@ -606,11 +604,11 @@
                                             // VIEW MODE
                                             React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
                                                 React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel || 'Not provided'),
-                                                React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotelAddress || 'Not provided'),
+                                                React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotel_address || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages || 'Not provided'),
-                                                React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.babyElderly || 'Not provided'),
+                                                React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.baby_elderly || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies || 'Not provided'),
                                                 React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power || 'Not provided'),
@@ -622,7 +620,7 @@
                                                     React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
                                             )
                                         ),
-                                        React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, `Registered: ${e.timestamp}`)
+                                        React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, `Registered: ${new Date(e.created_at).toLocaleString()}`)
                                     )
                                 )
                             )
