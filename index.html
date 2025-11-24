@@ -9,24 +9,173 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100">
+<body>
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState } = React;
-        
-        // PASTE YOUR ENTIRE RescueFormApp FUNCTION CODE HERE
-        // Copy everything starting from:
-        // "export default function RescueFormApp() {"
-        // all the way to the final closing "}"
-        // BUT REMOVE the "export default" part
-        
+        const { useState, useEffect } = React;
+
         function RescueFormApp() {
-          // YOUR ENTIRE CODE GOES HERE - copy everything from your file
-          // but remove the "export default" at the beginning
+            const [entries, setEntries] = useState([]);
+            const [form, setForm] = useState({
+                hotel: "", room: "", pax: "", ages: "", babyElderly: "", phone: "", 
+                supplies: "", power: "", medical: "", evacuation: "", nationality: "",
+            });
+
+            // Load saved data from localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem('rescueEntries');
+                if (saved) {
+                    setEntries(JSON.parse(saved));
+                }
+            }, []);
+
+            // Save to localStorage whenever entries change
+            useEffect(() => {
+                localStorage.setItem('rescueEntries', JSON.stringify(entries));
+            }, [entries]);
+
+            const handleChange = (e) => {
+                setForm({ ...form, [e.target.name]: e.target.value });
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const newEntry = { 
+                    ...form, 
+                    id: Date.now(), 
+                    timestamp: new Date().toLocaleString() 
+                };
+                setEntries([...entries, newEntry]);
+                setForm({
+                    hotel: "", room: "", pax: "", ages: "", babyElderly: "", phone: "", 
+                    supplies: "", power: "", medical: "", evacuation: "", nationality: "",
+                });
+                alert("Registration submitted successfully!");
+            };
+
+            const exportToGoogleSheets = () => {
+                if (entries.length === 0) {
+                    alert("No data to export");
+                    return;
+                }
+
+                const headers = ["Timestamp", "Hotel", "Room", "Pax", "Ages", "Baby/Elderly", "Phone", "Supplies", "Power", "Medical", "Evacuation", "Nationality"];
+                
+                const csvContent = [
+                    headers.join(","),
+                    ...entries.map(entry => [
+                        `"${entry.timestamp}"`,
+                        `"${entry.hotel}"`,
+                        `"${entry.room}"`,
+                        `"${entry.pax}"`,
+                        `"${entry.ages}"`,
+                        `"${entry.babyElderly}"`,
+                        `"${entry.phone}"`,
+                        `"${entry.supplies}"`,
+                        `"${entry.power}"`,
+                        `"${entry.medical}"`,
+                        `"${entry.evacuation}"`,
+                        `"${entry.nationality}"`
+                    ].join(","))
+                ].join("\n");
+
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "hatyai_rescue_data.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            return (
+                React.createElement('div', { className: 'p-6 max-w-4xl mx-auto' },
+                    // Title
+                    React.createElement('h1', { className: 'text-3xl font-bold mb-4' }, 'Hatyai Flood Rescue Registry'),
+                    
+                    // Buttons
+                    React.createElement('div', { className: 'flex gap-3 mb-6 flex-wrap' },
+                        React.createElement('button', {
+                            onClick: exportToGoogleSheets,
+                            className: 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2'
+                        }, '📥 Export to Google Sheets'),
+                        React.createElement('button', {
+                            onClick: () => {
+                                navigator.clipboard.writeText(window.location.href);
+                                alert('App link copied to clipboard!');
+                            },
+                            className: 'bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded flex items-center gap-2'
+                        }, '🔗 Copy App Link')
+                    ),
+                    
+                    // QR Code
+                    React.createElement('div', { className: 'mt-4 p-4 border rounded-lg bg-white' },
+                        React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, 'Share this App'),
+                        React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Scan QR code or share the link below:'),
+                        React.createElement('p', { className: 'text-xs text-gray-500 text-center break-all' }, window.location.href)
+                    ),
+
+                    // Form
+                    React.createElement('form', { onSubmit: handleSubmit, className: 'grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 mt-6' },
+                        // Form inputs
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Hotel Name *', name: 'hotel', value: form.hotel, onChange: handleChange, required: true }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Room Number *', name: 'room', value: form.room, onChange: handleChange, required: true }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Number of Pax *', name: 'pax', value: form.pax, onChange: handleChange, required: true }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Ages (e.g., 35,42,8)', name: 'ages', value: form.ages, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Baby/Elderly (yes/no)', name: 'babyElderly', value: form.babyElderly, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Phone Number *', name: 'phone', value: form.phone, onChange: handleChange, required: true }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Water/Food Left (days)', name: 'supplies', value: form.supplies, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Power Status', name: 'power', value: form.power, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Medical Needs', name: 'medical', value: form.medical, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Evacuation Needed (yes/no)', name: 'evacuation', value: form.evacuation, onChange: handleChange }),
+                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Nationality *', name: 'nationality', value: form.nationality, onChange: handleChange, required: true }),
+                        
+                        // Submit button
+                        React.createElement('div', { className: 'md:col-span-2' },
+                            React.createElement('button', { className: 'bg-blue-600 hover:bg-blue-700 text-white p-2 rounded w-full' }, 'Submit Registration')
+                        )
+                    ),
+
+                    // Summary
+                    entries.length > 0 && React.createElement('div', { className: 'mb-6 p-4 bg-blue-50 rounded-lg' },
+                        React.createElement('h3', { className: 'font-semibold mb-2' }, 'Summary:'),
+                        React.createElement('p', null, 'Total Registrations: ', React.createElement('strong', null, entries.length)),
+                        React.createElement('p', null, 'Need Evacuation: ', React.createElement('strong', null, entries.filter(e => e.evacuation?.toLowerCase() === 'yes').length)),
+                        React.createElement('p', null, 'With Medical Needs: ', React.createElement('strong', null, entries.filter(e => e.medical && e.medical !== '').length))
+                    ),
+
+                    // Entries list
+                    React.createElement('h2', { className: 'text-2xl font-semibold mb-2' }, `Registered Individuals/Families (${entries.length})`),
+                    entries.length === 0 
+                        ? React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.')
+                        : React.createElement('div', { className: 'grid gap-3' }, 
+                            entries.map((e) => 
+                                React.createElement('div', { key: e.id, className: 'border p-3 rounded shadow bg-white' },
+                                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
+                                        React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.babyElderly),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
+                                            React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation)),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality)
+                                    ),
+                                    React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, e.timestamp)
+                                )
+                            )
+                          )
+                )
+            );
         }
 
-        ReactDOM.render(<RescueFormApp />, document.getElementById('root'));
+        ReactDOM.render(React.createElement(RescueFormApp), document.getElementById('root'));
     </script>
 </body>
 </html>
