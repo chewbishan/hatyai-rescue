@@ -18,6 +18,8 @@
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
             const [searchTerm, setSearchTerm] = useState("");
+            const [editingId, setEditingId] = useState(null);
+            const [editForm, setEditForm] = useState({});
             const [form, setForm] = useState({
                 hotel: "", 
                 hotelAddress: "",
@@ -77,7 +79,9 @@
                 const newEntry = { 
                     ...form, 
                     id: Date.now(), 
-                    timestamp: new Date().toLocaleString() 
+                    timestamp: new Date().toLocaleString(),
+                    rescued: false, // New field to track rescue status
+                    rescueTimestamp: "" // When they were rescued
                 };
                 setEntries([...entries, newEntry]);
                 setForm({
@@ -99,6 +103,57 @@
                 alert("Registration submitted successfully!");
             };
 
+            // DELETE FUNCTION
+            const handleDelete = (id) => {
+                if (window.confirm("Are you sure you want to delete this entry?")) {
+                    const updatedEntries = entries.filter(entry => entry.id !== id);
+                    setEntries(updatedEntries);
+                    alert("Entry deleted successfully!");
+                }
+            };
+
+            // RESCUE STATUS TOGGLE
+            const handleRescueToggle = (id) => {
+                const updatedEntries = entries.map(entry => {
+                    if (entry.id === id) {
+                        return {
+                            ...entry,
+                            rescued: !entry.rescued,
+                            rescueTimestamp: !entry.rescued ? new Date().toLocaleString() : ""
+                        };
+                    }
+                    return entry;
+                });
+                setEntries(updatedEntries);
+            };
+
+            // EDIT FUNCTIONS
+            const handleEdit = (entry) => {
+                setEditingId(entry.id);
+                setEditForm({ ...entry });
+            };
+
+            const handleEditChange = (e) => {
+                setEditForm({ ...editForm, [e.target.name]: e.target.value });
+            };
+
+            const handleSaveEdit = () => {
+                const updatedEntries = entries.map(entry => 
+                    entry.id === editingId 
+                        ? { ...editForm, timestamp: new Date().toLocaleString() }
+                        : entry
+                );
+                setEntries(updatedEntries);
+                setEditingId(null);
+                setEditForm({});
+                alert("Entry updated successfully!");
+            };
+
+            const handleCancelEdit = () => {
+                setEditingId(null);
+                setEditForm({});
+            };
+
             const exportToGoogleSheets = () => {
                 if (entries.length === 0) {
                     alert("No data to export");
@@ -108,7 +163,7 @@
                 const headers = [
                     "Timestamp", "Hotel", "Hotel Address", "Room", "Pax", "Ages", 
                     "Baby/Elderly", "Phone", "Supplies", "Power", "Medical", 
-                    "Evacuation", "Nationality", "Remarks"
+                    "Evacuation", "Nationality", "Remarks", "Rescued", "Rescue Timestamp"
                 ];
                 
                 const csvContent = [
@@ -127,7 +182,9 @@
                         `"${entry.medical}"`,
                         `"${entry.evacuation}"`,
                         `"${entry.nationality}"`,
-                        `"${entry.remarks}"`
+                        `"${entry.remarks}"`,
+                        `"${entry.rescued ? 'YES' : 'NO'}"`,
+                        `"${entry.rescueTimestamp || ''}"`
                     ].join(","))
                 ].join("\n");
 
@@ -339,7 +396,13 @@
                         React.createElement('h3', { className: 'font-semibold mb-2' }, 'Summary:'),
                         React.createElement('p', null, 'Total Registrations: ', React.createElement('strong', null, entries.length)),
                         React.createElement('p', null, 'Need Evacuation: ', React.createElement('strong', null, entries.filter(e => e.evacuation?.toLowerCase() === 'yes').length)),
-                        React.createElement('p', null, 'With Medical Needs: ', React.createElement('strong', null, entries.filter(e => e.medical && e.medical !== '').length))
+                        React.createElement('p', null, 'With Medical Needs: ', React.createElement('strong', null, entries.filter(e => e.medical && e.medical !== '').length)),
+                        React.createElement('p', null, 'Rescued: ', 
+                            React.createElement('strong', { className: 'text-green-600' }, entries.filter(e => e.rescued).length),
+                            ' / ',
+                            React.createElement('strong', { className: 'text-red-600' }, entries.filter(e => !e.rescued).length),
+                            ' still waiting'
+                        )
                     ),
 
                     // Entries list
@@ -357,9 +420,107 @@
                         ? React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.')
                         : React.createElement('div', { className: 'grid gap-3' }, 
                             (searchTerm ? filteredEntries : entries).map((e) => 
-                                React.createElement('div', { key: e.id, className: 'border p-3 rounded shadow bg-white' },
-                                    React.createElement('div', { className: 'flex justify-between items-start' },
-                                        React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2 flex-1' },
+                                React.createElement('div', { 
+                                    key: e.id, 
+                                    className: `border p-3 rounded shadow ${e.rescued ? 'bg-green-50 border-green-200' : 'bg-white'}`
+                                },
+                                    // Rescue Status Badge
+                                    React.createElement('div', { className: 'flex justify-between items-center mb-2' },
+                                        React.createElement('span', { 
+                                            className: `px-3 py-1 rounded-full text-sm font-bold ${e.rescued ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`
+                                        }, e.rescued ? '✅ RESCUED' : '🆘 NEEDS RESCUE'),
+                                        React.createElement('div', { className: 'flex gap-2' },
+                                            // Rescue Toggle Button
+                                            React.createElement('button', {
+                                                onClick: () => handleRescueToggle(e.id),
+                                                className: `px-3 py-1 rounded text-sm ${e.rescued ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} text-white`
+                                            }, e.rescued ? 'Mark as Not Rescued' : 'Mark as Rescued'),
+                                            // Edit Button
+                                            React.createElement('button', {
+                                                onClick: () => handleEdit(e),
+                                                className: 'px-3 py-1 rounded text-sm bg-blue-500 hover:bg-blue-600 text-white'
+                                            }, 'Edit'),
+                                            // Delete Button
+                                            React.createElement('button', {
+                                                onClick: () => handleDelete(e.id),
+                                                className: 'px-3 py-1 rounded text-sm bg-red-500 hover:bg-red-600 text-white'
+                                            }, 'Delete')
+                                        )
+                                    ),
+
+                                    // Rescue timestamp
+                                    e.rescued && e.rescueTimestamp && 
+                                        React.createElement('p', { className: 'text-sm text-green-600 mb-2' }, 
+                                            `Rescued on: ${e.rescueTimestamp}`
+                                        ),
+
+                                    editingId === e.id ? (
+                                        // EDIT MODE
+                                        React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Hotel Name', 
+                                                name: 'hotel', 
+                                                value: editForm.hotel, 
+                                                onChange: handleEditChange
+                                            }),
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Hotel Address', 
+                                                name: 'hotelAddress', 
+                                                value: editForm.hotelAddress, 
+                                                onChange: handleEditChange 
+                                            }),
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Room Number', 
+                                                name: 'room', 
+                                                value: editForm.room, 
+                                                onChange: handleEditChange
+                                            }),
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Number of Pax', 
+                                                name: 'pax', 
+                                                value: editForm.pax, 
+                                                onChange: handleEditChange
+                                            }),
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Phone Number', 
+                                                name: 'phone', 
+                                                value: editForm.phone, 
+                                                onChange: handleEditChange
+                                            }),
+                                            React.createElement('input', { 
+                                                className: 'p-1 border rounded text-sm', 
+                                                placeholder: 'Nationality', 
+                                                name: 'nationality', 
+                                                value: editForm.nationality, 
+                                                onChange: handleEditChange
+                                            }),
+                                            React.createElement('textarea', { 
+                                                className: 'md:col-span-2 p-1 border rounded text-sm', 
+                                                placeholder: 'Remarks', 
+                                                name: 'remarks', 
+                                                value: editForm.remarks, 
+                                                onChange: handleEditChange,
+                                                rows: 2 
+                                            }),
+                                            React.createElement('div', { className: 'md:col-span-2 flex gap-2' },
+                                                React.createElement('button', {
+                                                    onClick: handleSaveEdit,
+                                                    className: 'bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm'
+                                                }, 'Save'),
+                                                React.createElement('button', {
+                                                    onClick: handleCancelEdit,
+                                                    className: 'bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm'
+                                                }, 'Cancel')
+                                            )
+                                        )
+                                    ) : (
+                                        // VIEW MODE
+                                        React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
                                             React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel || 'Not provided'),
                                             React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotelAddress || 'Not provided'),
                                             React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room || 'Not provided'),
@@ -375,9 +536,9 @@
                                             React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality || 'Not provided'),
                                             e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
                                                 React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
-                                        ),
-                                        React.createElement('span', { className: 'text-xs text-gray-500' }, e.timestamp)
-                                    )
+                                        )
+                                    ),
+                                    React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, `Registered: ${e.timestamp}`)
                                 )
                             )
                           )
