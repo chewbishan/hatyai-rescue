@@ -21,8 +21,13 @@
         const SUPABASE_URL = 'https://wdkbjlgeacfxpoynudh.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indka2JqbGdlYWNmY3hwb3ludWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTc0ODMsImV4cCI6MjA3OTU3MzQ4M30.WirrWiD-K9znPE297H294qy9EHRgOw5nIEO8kv5yjdE';
 
-        // Initialize Supabase
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Initialize Supabase with CORS handling
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+            }
+        });
 
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
@@ -31,6 +36,7 @@
             const [editForm, setEditForm] = useState({});
             const [loading, setLoading] = useState(true);
             const [lastRefresh, setLastRefresh] = useState('');
+            const [dbError, setDbError] = useState('');
             const [form, setForm] = useState({
                 hotel: "", 
                 hotel_address: "",
@@ -47,20 +53,46 @@
                 remarks: ""
             });
 
+            // Test database connection
+            const testConnection = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('rescue_entries')
+                        .select('count')
+                        .limit(1);
+                    
+                    if (error) {
+                        setDbError('Database connection failed: ' + error.message);
+                        return false;
+                    }
+                    return true;
+                } catch (error) {
+                    setDbError('Connection test failed: ' + error.message);
+                    return false;
+                }
+            };
+
             // Load data from Supabase
             const loadDataFromSupabase = async () => {
                 try {
                     setLoading(true);
-                    console.log('Loading data from Supabase...');
+                    setDbError('');
                     
+                    // Test connection first
+                    const connected = await testConnection();
+                    if (!connected) {
+                        setLoading(false);
+                        return;
+                    }
+
                     const { data, error } = await supabase
                         .from('rescue_entries')
                         .select('*')
                         .order('created_at', { ascending: false });
 
                     if (error) {
-                        console.error('Error loading data:', error);
-                        alert('Error loading data: ' + error.message);
+                        setDbError('Error loading data: ' + error.message);
+                        console.error('Supabase error:', error);
                     } else {
                         setEntries(data || []);
                         setLastRefresh(new Date().toLocaleTimeString());
@@ -68,7 +100,8 @@
                     
                     setLoading(false);
                 } catch (error) {
-                    console.error('Error loading data:', error);
+                    setDbError('Network error: ' + error.message);
+                    console.error('Network error:', error);
                     setLoading(false);
                 }
             };
@@ -110,13 +143,14 @@
                 }
 
                 try {
+                    setDbError('');
                     const { data, error } = await supabase
                         .from('rescue_entries')
                         .insert([{ ...form }])
                         .select();
 
                     if (error) {
-                        alert("Error submitting data: " + error.message);
+                        setDbError("Error submitting data: " + error.message);
                         return;
                     }
 
@@ -141,7 +175,7 @@
                     setSearchTerm("");
                     alert("Registration submitted successfully! Data is now visible to rescue teams.");
                 } catch (error) {
-                    alert("Error saving data. Please try again.");
+                    setDbError("Network error: " + error.message);
                 }
             };
 
@@ -154,7 +188,7 @@
                         .eq('id', id);
 
                     if (error) {
-                        alert("Error deleting entry: " + error.message);
+                        setDbError("Error deleting entry: " + error.message);
                     } else {
                         await loadDataFromSupabase();
                         alert("Entry deleted successfully!");
@@ -176,7 +210,7 @@
                     .eq('id', id);
 
                 if (error) {
-                    alert("Error updating rescue status: " + error.message);
+                    setDbError("Error updating rescue status: " + error.message);
                 } else {
                     await loadDataFromSupabase();
                 }
@@ -199,7 +233,7 @@
                     .eq('id', editingId);
 
                 if (error) {
-                    alert("Error updating entry: " + error.message);
+                    setDbError("Error updating entry: " + error.message);
                 } else {
                     await loadDataFromSupabase();
                     setEditingId(null);
@@ -293,8 +327,19 @@
                     // Title
                     React.createElement('h1', { className: 'text-3xl font-bold mb-4' }, 'Hatyai Flood Rescue Registry'),
                     
+                    // Database Connection Status
+                    dbError && React.createElement('div', { className: 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg' },
+                        React.createElement('p', { className: 'text-sm text-red-800' },
+                            '🚨 ',
+                            React.createElement('strong', null, 'DATABASE ERROR: '),
+                            dbError,
+                            React.createElement('br'),
+                            'Please check: 1) Table exists 2) CORS settings 3) Internet connection'
+                        )
+                    ),
+                    
                     // Shared Data Notice
-                    React.createElement('div', { className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg' },
+                    !dbError && React.createElement('div', { className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg' },
                         React.createElement('p', { className: 'text-sm text-green-800' },
                             '🔗 ',
                             React.createElement('strong', null, 'LIVE SHARED DATA: '),
@@ -498,7 +543,7 @@
                                 'No existing registrations found with your search. You can proceed to submit a new registration.'
                             ),
 
-                        entries.length === 0 && !loading ?
+                        entries.length === 0 && !loading && !dbError ?
                             React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.') :
                             React.createElement('div', { className: 'grid gap-3' }, 
                                 (searchTerm ? filteredEntries : entries).map((e) => 
