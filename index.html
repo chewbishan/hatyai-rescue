@@ -18,8 +18,19 @@
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
             const [form, setForm] = useState({
-                hotel: "", room: "", pax: "", ages: "", babyElderly: "", phone: "", 
-                supplies: "", power: "", medical: "", evacuation: "", nationality: "",
+                hotel: "", 
+                hotelAddress: "",  // NEW FIELD
+                room: "", 
+                pax: "", 
+                ages: "", 
+                babyElderly: "", 
+                phone: "", 
+                supplies: "", 
+                power: "", 
+                medical: "", 
+                evacuation: "", 
+                nationality: "",
+                remarks: ""  // NEW FIELD
             });
 
             // Load saved data from localStorage
@@ -48,8 +59,19 @@
                 };
                 setEntries([...entries, newEntry]);
                 setForm({
-                    hotel: "", room: "", pax: "", ages: "", babyElderly: "", phone: "", 
-                    supplies: "", power: "", medical: "", evacuation: "", nationality: "",
+                    hotel: "", 
+                    hotelAddress: "", 
+                    room: "", 
+                    pax: "", 
+                    ages: "", 
+                    babyElderly: "", 
+                    phone: "", 
+                    supplies: "", 
+                    power: "", 
+                    medical: "", 
+                    evacuation: "", 
+                    nationality: "",
+                    remarks: ""
                 });
                 alert("Registration submitted successfully!");
             };
@@ -60,13 +82,18 @@
                     return;
                 }
 
-                const headers = ["Timestamp", "Hotel", "Room", "Pax", "Ages", "Baby/Elderly", "Phone", "Supplies", "Power", "Medical", "Evacuation", "Nationality"];
+                const headers = [
+                    "Timestamp", "Hotel", "Hotel Address", "Room", "Pax", "Ages", 
+                    "Baby/Elderly", "Phone", "Supplies", "Power", "Medical", 
+                    "Evacuation", "Nationality", "Remarks"
+                ];
                 
                 const csvContent = [
                     headers.join(","),
                     ...entries.map(entry => [
                         `"${entry.timestamp}"`,
                         `"${entry.hotel}"`,
+                        `"${entry.hotelAddress}"`,
                         `"${entry.room}"`,
                         `"${entry.pax}"`,
                         `"${entry.ages}"`,
@@ -76,7 +103,8 @@
                         `"${entry.power}"`,
                         `"${entry.medical}"`,
                         `"${entry.evacuation}"`,
-                        `"${entry.nationality}"`
+                        `"${entry.nationality}"`,
+                        `"${entry.remarks}"`
                     ].join(","))
                 ].join("\n");
 
@@ -88,6 +116,28 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            };
+
+            const generateQRCode = () => {
+                const currentUrl = window.location.href;
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}`;
+                
+                return (
+                    React.createElement('div', { className: 'mt-4 p-4 border rounded-lg bg-white' },
+                        React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, 'Share this App'),
+                        React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Scan this QR code to access the rescue registry:'),
+                        React.createElement('img', { 
+                            src: qrCodeUrl, 
+                            alt: 'QR Code', 
+                            className: 'mx-auto border rounded' 
+                        }),
+                        React.createElement('p', { className: 'text-xs text-gray-500 mt-2 text-center' },
+                            'Or share this link: ',
+                            React.createElement('br'),
+                            React.createElement('span', { className: 'break-all' }, currentUrl)
+                        )
+                    )
+                );
             };
 
             return (
@@ -111,30 +161,126 @@
                     ),
                     
                     // QR Code
-                    React.createElement('div', { className: 'mt-4 p-4 border rounded-lg bg-white' },
-                        React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, 'Share this App'),
-                        React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Scan QR code or share the link below:'),
-                        React.createElement('p', { className: 'text-xs text-gray-500 text-center break-all' }, window.location.href)
-                    ),
+                    generateQRCode(),
 
                     // Form
                     React.createElement('form', { onSubmit: handleSubmit, className: 'grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 mt-6' },
-                        // Form inputs
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Hotel Name *', name: 'hotel', value: form.hotel, onChange: handleChange, required: true }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Room Number *', name: 'room', value: form.room, onChange: handleChange, required: true }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Number of Pax *', name: 'pax', value: form.pax, onChange: handleChange, required: true }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Ages (e.g., 35,42,8)', name: 'ages', value: form.ages, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Baby/Elderly (yes/no)', name: 'babyElderly', value: form.babyElderly, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Phone Number *', name: 'phone', value: form.phone, onChange: handleChange, required: true }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Water/Food Left (days)', name: 'supplies', value: form.supplies, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Power Status', name: 'power', value: form.power, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Medical Needs', name: 'medical', value: form.medical, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Evacuation Needed (yes/no)', name: 'evacuation', value: form.evacuation, onChange: handleChange }),
-                        React.createElement('input', { className: 'p-2 border rounded', placeholder: 'Nationality *', name: 'nationality', value: form.nationality, onChange: handleChange, required: true }),
+                        // Form inputs - Row 1
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Hotel Name *', 
+                            name: 'hotel', 
+                            value: form.hotel, 
+                            onChange: handleChange, 
+                            required: true 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Hotel Address', 
+                            name: 'hotelAddress', 
+                            value: form.hotelAddress, 
+                            onChange: handleChange 
+                        }),
+                        
+                        // Row 2
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Room Number *', 
+                            name: 'room', 
+                            value: form.room, 
+                            onChange: handleChange, 
+                            required: true 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Number of Pax *', 
+                            name: 'pax', 
+                            value: form.pax, 
+                            onChange: handleChange, 
+                            required: true 
+                        }),
+                        
+                        // Row 3
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Ages (e.g., 35,42,8)', 
+                            name: 'ages', 
+                            value: form.ages, 
+                            onChange: handleChange 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Baby/Elderly (yes/no)', 
+                            name: 'babyElderly', 
+                            value: form.babyElderly, 
+                            onChange: handleChange 
+                        }),
+                        
+                        // Row 4
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Phone Number *', 
+                            name: 'phone', 
+                            value: form.phone, 
+                            onChange: handleChange, 
+                            required: true 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Water/Food Left (days)', 
+                            name: 'supplies', 
+                            value: form.supplies, 
+                            onChange: handleChange 
+                        }),
+                        
+                        // Row 5
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Power Status', 
+                            name: 'power', 
+                            value: form.power, 
+                            onChange: handleChange 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Medical Needs', 
+                            name: 'medical', 
+                            value: form.medical, 
+                            onChange: handleChange 
+                        }),
+                        
+                        // Row 6
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Evacuation Needed (yes/no)', 
+                            name: 'evacuation', 
+                            value: form.evacuation, 
+                            onChange: handleChange 
+                        }),
+                        React.createElement('input', { 
+                            className: 'p-2 border rounded', 
+                            placeholder: 'Nationality *', 
+                            name: 'nationality', 
+                            value: form.nationality, 
+                            onChange: handleChange, 
+                            required: true 
+                        }),
+                        
+                        // Remarks (full width)
+                        React.createElement('textarea', { 
+                            className: 'md:col-span-2 p-2 border rounded', 
+                            placeholder: 'Remarks / Additional Information (e.g., special needs, exact location details, etc.)', 
+                            name: 'remarks', 
+                            value: form.remarks, 
+                            onChange: handleChange,
+                            rows: 3 
+                        }),
                         
                         // Submit button
                         React.createElement('div', { className: 'md:col-span-2' },
-                            React.createElement('button', { className: 'bg-blue-600 hover:bg-blue-700 text-white p-2 rounded w-full' }, 'Submit Registration')
+                            React.createElement('button', { 
+                                className: 'bg-blue-600 hover:bg-blue-700 text-white p-2 rounded w-full' 
+                            }, 'Submit Registration')
                         )
                     ),
 
@@ -155,6 +301,7 @@
                                 React.createElement('div', { key: e.id, className: 'border p-3 rounded shadow bg-white' },
                                     React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
                                         React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotelAddress || 'Not provided'),
                                         React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room),
                                         React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax),
                                         React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages),
@@ -165,7 +312,9 @@
                                         React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
                                         React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
                                             React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation)),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality)
+                                        React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality),
+                                        e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
+                                            React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
                                     ),
                                     React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, e.timestamp)
                                 )
