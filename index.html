@@ -17,9 +17,10 @@
 
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
+            const [searchTerm, setSearchTerm] = useState("");
             const [form, setForm] = useState({
                 hotel: "", 
-                hotelAddress: "",  // NEW FIELD
+                hotelAddress: "",
                 room: "", 
                 pax: "", 
                 ages: "", 
@@ -30,7 +31,7 @@
                 medical: "", 
                 evacuation: "", 
                 nationality: "",
-                remarks: ""  // NEW FIELD
+                remarks: ""
             });
 
             // Load saved data from localStorage
@@ -50,8 +51,29 @@
                 setForm({ ...form, [e.target.name]: e.target.value });
             };
 
+            const handleSearchChange = (e) => {
+                setSearchTerm(e.target.value);
+            };
+
+            const checkForDuplicate = () => {
+                if (!form.hotel && !form.room && !form.phone) return false;
+                
+                return entries.some(entry => 
+                    (form.hotel && entry.hotel?.toLowerCase().includes(form.hotel.toLowerCase())) ||
+                    (form.room && entry.room?.toLowerCase().includes(form.room.toLowerCase())) ||
+                    (form.phone && entry.phone?.includes(form.phone))
+                );
+            };
+
             const handleSubmit = (e) => {
                 e.preventDefault();
+                
+                // Check for potential duplicates
+                const isDuplicate = checkForDuplicate();
+                if (isDuplicate && !window.confirm("This entry seems similar to an existing one. Are you sure you want to submit?")) {
+                    return;
+                }
+
                 const newEntry = { 
                     ...form, 
                     id: Date.now(), 
@@ -73,6 +95,7 @@
                     nationality: "",
                     remarks: ""
                 });
+                setSearchTerm(""); // Clear search after submission
                 alert("Registration submitted successfully!");
             };
 
@@ -140,6 +163,15 @@
                 );
             };
 
+            // Filter entries based on search term
+            const filteredEntries = entries.filter(entry => 
+                entry.hotel?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                entry.room?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                entry.phone?.includes(searchTerm) ||
+                entry.nationality?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                entry.hotelAddress?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
             return (
                 React.createElement('div', { className: 'p-6 max-w-4xl mx-auto' },
                     // Title
@@ -163,16 +195,38 @@
                     // QR Code
                     generateQRCode(),
 
+                    // Search Box
+                    React.createElement('div', { className: 'mb-6 mt-6' },
+                        React.createElement('h2', { className: 'text-xl font-semibold mb-3' }, 'Check Existing Registrations'),
+                        React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 
+                            'Search by hotel, room number, phone, or nationality to check if you are already registered:'
+                        ),
+                        React.createElement('input', {
+                            type: 'text',
+                            placeholder: 'Search by hotel, room, phone, or nationality...',
+                            value: searchTerm,
+                            onChange: handleSearchChange,
+                            className: 'w-full p-3 border rounded-lg shadow-sm'
+                        })
+                    ),
+
+                    // Quick summary of search results
+                    searchTerm && React.createElement('div', { className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg' },
+                        React.createElement('p', { className: 'text-sm' },
+                            React.createElement('strong', null, `Found ${filteredEntries.length} matching registration(s)`),
+                            ' - Please check if you are already in the list below before submitting a new registration.'
+                        )
+                    ),
+
                     // Form
                     React.createElement('form', { onSubmit: handleSubmit, className: 'grid grid-cols-1 md:grid-cols-2 gap-3 mb-8 mt-6' },
                         // Form inputs - Row 1
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
-                            placeholder: 'Hotel Name *', 
+                            placeholder: 'Hotel Name', 
                             name: 'hotel', 
                             value: form.hotel, 
-                            onChange: handleChange, 
-                            required: true 
+                            onChange: handleChange
                         }),
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
@@ -185,19 +239,17 @@
                         // Row 2
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
-                            placeholder: 'Room Number *', 
+                            placeholder: 'Room Number', 
                             name: 'room', 
                             value: form.room, 
-                            onChange: handleChange, 
-                            required: true 
+                            onChange: handleChange
                         }),
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
-                            placeholder: 'Number of Pax *', 
+                            placeholder: 'Number of Pax', 
                             name: 'pax', 
                             value: form.pax, 
-                            onChange: handleChange, 
-                            required: true 
+                            onChange: handleChange
                         }),
                         
                         // Row 3
@@ -219,11 +271,10 @@
                         // Row 4
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
-                            placeholder: 'Phone Number *', 
+                            placeholder: 'Phone Number', 
                             name: 'phone', 
                             value: form.phone, 
-                            onChange: handleChange, 
-                            required: true 
+                            onChange: handleChange
                         }),
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
@@ -259,11 +310,10 @@
                         }),
                         React.createElement('input', { 
                             className: 'p-2 border rounded', 
-                            placeholder: 'Nationality *', 
+                            placeholder: 'Nationality', 
                             name: 'nationality', 
                             value: form.nationality, 
-                            onChange: handleChange, 
-                            required: true 
+                            onChange: handleChange
                         }),
                         
                         // Remarks (full width)
@@ -293,30 +343,41 @@
                     ),
 
                     // Entries list
-                    React.createElement('h2', { className: 'text-2xl font-semibold mb-2' }, `Registered Individuals/Families (${entries.length})`),
+                    React.createElement('h2', { className: 'text-2xl font-semibold mb-2' }, 
+                        `Registered Individuals/Families (${searchTerm ? filteredEntries.length + ' of ' + entries.length : entries.length})`
+                    ),
+                    
+                    // Search info
+                    searchTerm && filteredEntries.length === 0 && 
+                        React.createElement('p', { className: 'text-green-600 bg-green-50 p-3 rounded mb-4' },
+                            'No existing registrations found with your search. You can proceed to submit a new registration.'
+                        ),
+
                     entries.length === 0 
                         ? React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.')
                         : React.createElement('div', { className: 'grid gap-3' }, 
-                            entries.map((e) => 
+                            (searchTerm ? filteredEntries : entries).map((e) => 
                                 React.createElement('div', { key: e.id, className: 'border p-3 rounded shadow bg-white' },
-                                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
-                                        React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotelAddress || 'Not provided'),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.babyElderly),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
-                                            React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation)),
-                                        React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality),
-                                        e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
-                                            React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
-                                    ),
-                                    React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, e.timestamp)
+                                    React.createElement('div', { className: 'flex justify-between items-start' },
+                                        React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2 flex-1' },
+                                            React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotelAddress || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.babyElderly || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power || 'Not provided'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
+                                                React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation || 'Not specified')),
+                                            React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality || 'Not provided'),
+                                            e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
+                                                React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
+                                        ),
+                                        React.createElement('span', { className: 'text-xs text-gray-500' }, e.timestamp)
+                                    )
                                 )
                             )
                           )
