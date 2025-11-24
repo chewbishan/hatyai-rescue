@@ -15,74 +15,13 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // ✅ YOUR SUPABASE CREDENTIALS
-        const SUPABASE_URL = 'https://wdkbjlgeacfxpoynudh.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indka2JqbGdlYWNmY3hwb3ludWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTc0ODMsImV4cCI6MjA3OTU3MzQ4M30.WirrWiD-K9znPE297H294qy9EHRgOw5nIEO8kv5yjdE';
-
-        // CORS Proxy to avoid CORS issues
-        const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-        
-        // Custom Supabase client that uses fetch directly
-        const supabaseFetch = {
-            from: (table) => ({
-                select: async () => {
-                    const response = await fetch(`${CORS_PROXY}${SUPABASE_URL}/rest/v1/${table}?select=*`, {
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    return response.json();
-                },
-                insert: async (data) => {
-                    const response = await fetch(`${CORS_PROXY}${SUPABASE_URL}/rest/v1/${table}`, {
-                        method: 'POST',
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=representation'
-                        },
-                        body: JSON.stringify(data[0])
-                    });
-                    return response.json();
-                },
-                update: async (data) => {
-                    const response = await fetch(`${CORS_PROXY}${SUPABASE_URL}/rest/v1/${table}?id=eq.${editingId}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=representation'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                    return response.json();
-                },
-                delete: async (id) => {
-                    const response = await fetch(`${CORS_PROXY}${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    return response.json();
-                }
-            })
-        };
+        // Google Apps Script Web App URL - I'll help you create this
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
 
         function RescueFormApp() {
             const [entries, setEntries] = useState([]);
             const [searchTerm, setSearchTerm] = useState("");
-            const [editingId, setEditingId] = useState(null);
-            const [editForm, setEditForm] = useState({});
-            const [loading, setLoading] = useState(true);
-            const [lastRefresh, setLastRefresh] = useState('');
-            const [dbError, setDbError] = useState('');
+            const [loading, setLoading] = useState(false);
             const [form, setForm] = useState({
                 hotel: "", 
                 hotel_address: "",
@@ -99,34 +38,17 @@
                 remarks: ""
             });
 
-            // Load data from Supabase
-            const loadDataFromSupabase = async () => {
-                try {
-                    setLoading(true);
-                    setDbError('');
-                    
-                    console.log('Loading data from Supabase...');
-                    const result = await supabaseFetch.from('rescue_entries').select();
-                    
-                    if (result.error) {
-                        setDbError('Error loading data: ' + result.error.message);
-                    } else {
-                        setEntries(result || []);
-                        setLastRefresh(new Date().toLocaleTimeString());
-                    }
-                    
-                    setLoading(false);
-                } catch (error) {
-                    setDbError('Network error: ' + error.message);
-                    console.error('Error:', error);
-                    setLoading(false);
-                }
-            };
-
-            // Load data when component mounts
+            // For now, use localStorage as backup
             useEffect(() => {
-                loadDataFromSupabase();
+                const saved = localStorage.getItem('rescueEntries');
+                if (saved) {
+                    setEntries(JSON.parse(saved));
+                }
             }, []);
+
+            useEffect(() => {
+                localStorage.setItem('rescueEntries', JSON.stringify(entries));
+            }, [entries]);
 
             const handleChange = (e) => {
                 setForm({ ...form, [e.target.name]: e.target.value });
@@ -136,127 +58,58 @@
                 setSearchTerm(e.target.value);
             };
 
-            const checkForDuplicate = () => {
-                if (!form.hotel && !form.room && !form.phone) return false;
-                
-                return entries.some(entry => 
-                    (form.hotel && entry.hotel?.toLowerCase().includes(form.hotel.toLowerCase())) ||
-                    (form.room && entry.room?.toLowerCase().includes(form.room.toLowerCase())) ||
-                    (form.phone && entry.phone?.includes(form.phone))
-                );
-            };
-
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 
-                // Check for potential duplicates
-                const isDuplicate = checkForDuplicate();
-                if (isDuplicate && !window.confirm("This entry seems similar to an existing one. Are you sure you want to submit?")) {
-                    return;
-                }
+                const newEntry = { 
+                    ...form, 
+                    id: Date.now(), 
+                    timestamp: new Date().toLocaleString(),
+                    rescued: false,
+                    rescue_timestamp: ""
+                };
 
-                try {
-                    setDbError('');
-                    const result = await supabaseFetch.from('rescue_entries').insert([{ ...form }]);
-                    
-                    if (result.error) {
-                        setDbError("Error submitting data: " + result.error.message);
-                    } else {
-                        // Refresh the data to include the new entry
-                        await loadDataFromSupabase();
-                        
-                        setForm({
-                            hotel: "", 
-                            hotel_address: "", 
-                            room: "", 
-                            pax: "", 
-                            ages: "", 
-                            baby_elderly: "", 
-                            phone: "", 
-                            supplies: "", 
-                            power: "", 
-                            medical: "", 
-                            evacuation: "", 
-                            nationality: "",
-                            remarks: ""
-                        });
-                        setSearchTerm("");
-                        alert("Registration submitted successfully! Data is now visible to rescue teams.");
-                    }
-                } catch (error) {
-                    setDbError("Network error: " + error.message);
-                }
+                setEntries([...entries, newEntry]);
+                setForm({
+                    hotel: "", 
+                    hotel_address: "", 
+                    room: "", 
+                    pax: "", 
+                    ages: "", 
+                    baby_elderly: "", 
+                    phone: "", 
+                    supplies: "", 
+                    power: "", 
+                    medical: "", 
+                    evacuation: "", 
+                    nationality: "",
+                    remarks: ""
+                });
+                alert("Registration submitted successfully! Data saved locally.");
             };
 
             // DELETE FUNCTION
-            const handleDelete = async (id) => {
+            const handleDelete = (id) => {
                 if (window.confirm("Are you sure you want to delete this entry?")) {
-                    try {
-                        const result = await supabaseFetch.from('rescue_entries').delete(id);
-                        
-                        if (result.error) {
-                            setDbError("Error deleting entry: " + result.error.message);
-                        } else {
-                            await loadDataFromSupabase();
-                            alert("Entry deleted successfully!");
-                        }
-                    } catch (error) {
-                        setDbError("Error: " + error.message);
-                    }
+                    const updatedEntries = entries.filter(entry => entry.id !== id);
+                    setEntries(updatedEntries);
+                    alert("Entry deleted successfully!");
                 }
             };
 
-            // RESCUE STATUS TOGGLE - Simplified for now
-            const handleRescueToggle = async (id, currentRescuedStatus) => {
-                const newRescuedStatus = !currentRescuedStatus;
-                const rescueTimestamp = newRescuedStatus ? new Date().toLocaleString() : "";
-
-                // Update local state immediately for better UX
+            // RESCUE STATUS TOGGLE
+            const handleRescueToggle = (id) => {
                 const updatedEntries = entries.map(entry => {
                     if (entry.id === id) {
                         return {
                             ...entry,
-                            rescued: newRescuedStatus,
-                            rescue_timestamp: rescueTimestamp
+                            rescued: !entry.rescued,
+                            rescue_timestamp: !entry.rescued ? new Date().toLocaleString() : ""
                         };
                     }
                     return entry;
                 });
                 setEntries(updatedEntries);
-                
-                alert(`Marked as ${newRescuedStatus ? 'RESCUED' : 'NEEDS RESCUE'}`);
-            };
-
-            // EDIT FUNCTIONS - Simplified for now
-            const handleEdit = (entry) => {
-                setEditingId(entry.id);
-                setEditForm({ ...entry });
-            };
-
-            const handleEditChange = (e) => {
-                setEditForm({ ...editForm, [e.target.name]: e.target.value });
-            };
-
-            const handleSaveEdit = async () => {
-                try {
-                    const result = await supabaseFetch.from('rescue_entries').update(editForm);
-                    
-                    if (result.error) {
-                        setDbError("Error updating entry: " + result.error.message);
-                    } else {
-                        await loadDataFromSupabase();
-                        setEditingId(null);
-                        setEditForm({});
-                        alert("Entry updated successfully!");
-                    }
-                } catch (error) {
-                    setDbError("Error: " + error.message);
-                }
-            };
-
-            const handleCancelEdit = () => {
-                setEditingId(null);
-                setEditForm({});
             };
 
             const exportToCSV = () => {
@@ -274,7 +127,7 @@
                 const csvContent = [
                     headers.join(","),
                     ...entries.map(entry => [
-                        `"${new Date(entry.created_at).toLocaleString()}"`,
+                        `"${entry.timestamp}"`,
                         `"${entry.hotel || ''}"`,
                         `"${entry.hotel_address || ''}"`,
                         `"${entry.room || ''}"`,
@@ -339,32 +192,12 @@
                     // Title
                     React.createElement('h1', { className: 'text-3xl font-bold mb-4' }, 'Hatyai Flood Rescue Registry'),
                     
-                    // Database Connection Status
-                    dbError && React.createElement('div', { className: 'mb-4 p-3 bg-red-50 border border-red-200 rounded-lg' },
-                        React.createElement('p', { className: 'text-sm text-red-800' },
-                            '🚨 ',
-                            React.createElement('strong', null, 'DATABASE ERROR: '),
-                            dbError,
-                            React.createElement('br'),
-                            'Trying to connect via CORS proxy...'
-                        )
-                    ),
-                    
-                    // Shared Data Notice
-                    !dbError && entries.length > 0 && React.createElement('div', { className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg' },
-                        React.createElement('p', { className: 'text-sm text-green-800' },
-                            '🔗 ',
-                            React.createElement('strong', null, 'LIVE SHARED DATA: '),
-                            'All entries are visible to everyone. Data stored in cloud database.'
-                        )
-                    ),
-
-                    // Local Storage Notice (if no DB connection)
-                    dbError && React.createElement('div', { className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg' },
+                    // Data Storage Notice
+                    React.createElement('div', { className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg' },
                         React.createElement('p', { className: 'text-sm text-yellow-800' },
-                            '⚠️ ',
-                            React.createElement('strong', null, 'USING LOCAL STORAGE: '),
-                            'Data is saved locally on this device only. Other users cannot see your entries.'
+                            '💾 ',
+                            React.createElement('strong', null, 'LOCAL STORAGE: '),
+                            'Data is saved on this device only. For shared data, we need to set up Google Sheets backend.'
                         )
                     ),
                     
@@ -375,9 +208,16 @@
                             className: 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2'
                         }, '📥 Export to CSV'),
                         React.createElement('button', {
-                            onClick: loadDataFromSupabase,
-                            className: 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2'
-                        }, '🔄 Refresh Data'),
+                            onClick: () => {
+                                // Clear all data
+                                if (window.confirm("Clear all data? This cannot be undone.")) {
+                                    setEntries([]);
+                                    localStorage.removeItem('rescueEntries');
+                                    alert("All data cleared!");
+                                }
+                            },
+                            className: 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2'
+                        }, '🗑️ Clear All Data'),
                         React.createElement('button', {
                             onClick: () => {
                                 navigator.clipboard.writeText(window.location.href);
@@ -405,13 +245,8 @@
                         })
                     ),
 
-                    // Loading indicator
-                    loading && React.createElement('div', { className: 'text-center py-4' },
-                        React.createElement('p', { className: 'text-gray-600' }, 'Loading data...')
-                    ),
-
                     // Quick summary of search results
-                    searchTerm && !loading && React.createElement('div', { className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg' },
+                    searchTerm && React.createElement('div', { className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg' },
                         React.createElement('p', { className: 'text-sm' },
                             React.createElement('strong', null, `Found ${filteredEntries.length} matching registration(s)`),
                             ' - Please check if you are already in the list below before submitting a new registration.'
@@ -522,7 +357,7 @@
                     ),
 
                     // Summary
-                    entries.length > 0 && !loading && React.createElement('div', { className: 'mb-6 p-4 bg-blue-50 rounded-lg' },
+                    entries.length > 0 && React.createElement('div', { className: 'mb-6 p-4 bg-blue-50 rounded-lg' },
                         React.createElement('h3', { className: 'font-semibold mb-2' }, 'Summary:'),
                         React.createElement('p', null, 'Total Registrations: ', React.createElement('strong', null, entries.length)),
                         React.createElement('p', null, 'Need Evacuation: ', React.createElement('strong', null, entries.filter(e => e.evacuation?.toLowerCase() === 'yes').length)),
@@ -536,56 +371,58 @@
                     ),
 
                     // Entries list
-                    !loading && React.createElement('div', null,
-                        React.createElement('h2', { className: 'text-2xl font-semibold mb-2' }, 
-                            `Registered Individuals/Families (${searchTerm ? filteredEntries.length + ' of ' + entries.length : entries.length})`
-                        ),
+                    React.createElement('h2', { className: 'text-2xl font-semibold mb-2' }, 
+                        `Registered Individuals/Families (${searchTerm ? filteredEntries.length + ' of ' + entries.length : entries.length})`
+                    ),
                         
-                        entries.length === 0 && !loading ?
-                            React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.') :
-                            React.createElement('div', { className: 'grid gap-3' }, 
-                                (searchTerm ? filteredEntries : entries).map((e) => 
-                                    React.createElement('div', { 
-                                        key: e.id, 
-                                        className: `border p-3 rounded shadow ${e.rescued ? 'bg-green-50 border-green-200' : 'bg-white'}`
-                                    },
-                                        React.createElement('div', { className: 'flex justify-between items-center mb-2' },
-                                            React.createElement('span', { 
-                                                className: `px-3 py-1 rounded-full text-sm font-bold ${e.rescued ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`
-                                            }, e.rescued ? '✅ RESCUED' : '🆘 NEEDS RESCUE'),
-                                            React.createElement('div', { className: 'flex gap-2' },
-                                                React.createElement('button', {
-                                                    onClick: () => handleRescueToggle(e.id, e.rescued),
-                                                    className: `px-3 py-1 rounded text-sm ${e.rescued ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} text-white`
-                                                }, e.rescued ? 'Mark as Not Rescued' : 'Mark as Rescued'),
-                                                React.createElement('button', {
-                                                    onClick: () => handleDelete(e.id),
-                                                    className: 'px-3 py-1 rounded text-sm bg-red-500 hover:bg-red-600 text-white'
-                                                }, 'Delete')
-                                            )
+                    entries.length === 0 ?
+                        React.createElement('p', { className: 'text-gray-500 text-center py-4' }, 'No registrations yet. Please fill out the form above.') :
+                        React.createElement('div', { className: 'grid gap-3' }, 
+                            (searchTerm ? filteredEntries : entries).map((e) => 
+                                React.createElement('div', { 
+                                    key: e.id, 
+                                    className: `border p-3 rounded shadow ${e.rescued ? 'bg-green-50 border-green-200' : 'bg-white'}`
+                                },
+                                    React.createElement('div', { className: 'flex justify-between items-center mb-2' },
+                                        React.createElement('span', { 
+                                            className: `px-3 py-1 rounded-full text-sm font-bold ${e.rescued ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`
+                                        }, e.rescued ? '✅ RESCUED' : '🆘 NEEDS RESCUE'),
+                                        React.createElement('div', { className: 'flex gap-2' },
+                                            React.createElement('button', {
+                                                onClick: () => handleRescueToggle(e.id),
+                                                className: `px-3 py-1 rounded text-sm ${e.rescued ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} text-white`
+                                            }, e.rescued ? 'Mark as Not Rescued' : 'Mark as Rescued'),
+                                            React.createElement('button', {
+                                                onClick: () => handleDelete(e.id),
+                                                className: 'px-3 py-1 rounded text-sm bg-red-500 hover:bg-red-600 text-white'
+                                            }, 'Delete')
+                                        )
+                                    ),
+                                    e.rescued && e.rescue_timestamp && 
+                                        React.createElement('p', { className: 'text-sm text-green-600 mb-2' }, 
+                                            `Rescued on: ${e.rescue_timestamp}`
                                         ),
-                                        React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
-                                            React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotel_address || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.baby_elderly || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power || 'Not provided'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
-                                                React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation || 'Not specified')),
-                                            React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality || 'Not provided'),
-                                            e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
-                                                React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
-                                        ),
-                                        React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, `Registered: ${new Date(e.created_at).toLocaleString()}`)
-                                    )
+                                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-2' },
+                                        React.createElement('p', null, React.createElement('strong', null, 'Hotel:'), ' ', e.hotel || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Address:'), ' ', e.hotel_address || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Room:'), ' ', e.room || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Pax:'), ' ', e.pax || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Ages:'), ' ', e.ages || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Baby/Elderly:'), ' ', e.baby_elderly || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Phone:'), ' ', e.phone || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Supplies:'), ' ', e.supplies || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Power:'), ' ', e.power || 'Not provided'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Medical:'), ' ', e.medical || 'None'),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Evacuation:'), ' ', 
+                                            React.createElement('span', { className: e.evacuation?.toLowerCase() === 'yes' ? 'text-red-600 font-bold' : 'text-green-600' }, e.evacuation || 'Not specified')),
+                                        React.createElement('p', null, React.createElement('strong', null, 'Nationality:'), ' ', e.nationality || 'Not provided'),
+                                        e.remarks && React.createElement('p', { className: 'md:col-span-2' }, 
+                                            React.createElement('strong', null, 'Remarks:'), ' ', e.remarks)
+                                    ),
+                                    React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, `Registered: ${e.timestamp}`)
                                 )
                             )
-                    )
+                        )
                 )
             );
         }
